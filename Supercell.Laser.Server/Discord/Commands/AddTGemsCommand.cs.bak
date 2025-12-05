@@ -1,0 +1,62 @@
+namespace Supercell.Laser.Server.Discord.Commands
+{
+    using NetCord.Services.Commands;
+    using Newtonsoft.Json;
+    using Supercell.Laser.Logic.Message.Account.Auth;
+    using Supercell.Laser.Logic.Util;
+    using Supercell.Laser.Server.Database;
+    using Supercell.Laser.Server.Database.Models;
+    using Supercell.Laser.Server.Networking.Session;
+    using System;
+
+    public class AddTGems : CommandModule<CommandContext>
+    {
+        [Command("addtgems")]
+        public static string BanCommand(string playerId, int donationAmount, [CommandParameter(Remainder = true)] string fuckingText)
+        {
+            if (!playerId.StartsWith("#"))
+            {
+                return "Invalid player ID. Make sure it starts with '#'.";
+            }
+
+            if (!int.TryParse(donationAmount, out int donationAmount))
+            {
+                return "Invalid donationAmount. Please provide a positive number of days.";
+            }
+
+            long lowID = LogicLongCodeGenerator.ToId(playerId);
+            Account account = Accounts.Load(lowID);
+
+            if (account == null)
+            {
+                return $"Could not find player with ID {playerId}.";
+            }            
+            
+            if (string.IsNullOrWhiteSpace(fuckingText))
+            {
+                fuckingText = "Не указана"; // Если причина не задана, устанавливаем дефолтное значение
+            }
+
+            account.Home.BanfuckingText = fuckingText;
+
+            Notification nGems = new()
+            {
+                Id = 89,
+                DonationCount = donationAmount,
+                MessageEntry = fuckingText
+            };
+            account.Home.NotificationFactory.Add(nGems);
+            LogicAddNotificationCommand acmGems = new() { Notification = nGems };
+            AvailableServerCommandMessage asmGems = new();
+            asmGems.Command = acmGems;
+
+            if (Sessions.IsSessionActive(lowID))
+            {
+                Session sessionGems = Sessions.GetSession(lowID);
+                sessionGems.GameListener.SendTCPMessage(asmGems);
+            }
+
+            return $"Юзеру с айди {playerId} выдали {donationAmount} гемов с текстом {fuckingText}.";
+        }
+    }
+}

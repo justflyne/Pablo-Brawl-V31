@@ -1,0 +1,189 @@
+[   
+  {
+    "Title": "ОБНОВЛЕНИЕ!",
+    "IsDailyDeals": false,
+    "IsTrue": false,
+    "IsLobbyPopupOffer": false,
+    "IsLobbyPopupOffer": false,
+    "StartTime": "2025-09-10T11:00:00Z",
+    "EndTime": "2025-09-26T12:00:00Z",
+    "BackgroundExportName": "offer_chromatic",
+    "Currency": 0,
+    "Cost": 0,
+    "OldCost": 0,
+    "SaleStyle": 0,
+    "SaleAmount": 0,
+    "SaleStyle": 2,
+    "SaleAmount": 1337,
+    "Claim": "puzotryasv31update",
+    "Items": [  
+      {
+        "Type": "MegaBox",
+        "Count": 3,
+        "BrawlerID": 999,
+        "Extra": 999
+      }
+    ]
+  },
+  {
+    "Title": "День 1",
+    "IsDailyDeals": false,
+    "IsTrue": false,
+    "IsLobbyPopupOffer": false,
+    "StartTime": "2025-09-20T11:00:00Z",
+    "EndTime": "2025-10-03T12:00:00Z",
+    "BackgroundExportName": "offer_xmas",
+    "Currency": 0,
+    "Cost": 0,
+    "OldCost": 0,
+    "SaleStyle": 0,
+    "SaleAmount": 0,
+    "Claim": "v31day1",
+    "Items": [  
+      {
+        "Type": "Coin",
+        "Count": 750,
+        "BrawlerID": 999,
+        "Extra": 999
+      }
+    ]
+  },
+  {
+    "Title": "День 2",
+    "IsDailyDeals": false,
+    "IsTrue": false,
+    "IsLobbyPopupOffer": false,
+    "StartTime": "2025-09-21T11:00:00Z",
+    "EndTime": "2025-10-03T12:00:00Z",
+    "BackgroundExportName": "offer_xmas",
+    "Currency": 0,
+    "Cost": 0,
+    "OldCost": 0,
+    "SaleStyle": 0,
+    "SaleAmount": 0,
+    "Claim": "v31day2",
+    "Items": [  
+      {
+        "Type": "BigBox",
+        "Count": 3,
+        "BrawlerID": 999,
+        "Extra": 999
+      }
+    ]
+  },
+  {
+    "Title": "День 3",
+    "IsDailyDeals": false,
+    "IsTrue": false,
+    "IsLobbyPopupOffer": false,
+    "StartTime": "2025-09-22T11:00:00Z",
+    "EndTime": "2025-10-03T12:00:00Z",
+    "BackgroundExportName": "offer_xmas",
+    "Currency": 0,
+    "Cost": 0,
+    "OldCost": 0,
+    "SaleStyle": 0,
+    "SaleAmount": 0,
+    "Claim": "v31day3",
+    "Items": [  
+      {
+        "Type": "Gems",
+        "Count": 50,
+        "BrawlerID": 999,
+        "Extra": 999
+      }
+    ]
+  },
+  {
+    "Title": "День 4",
+    "IsDailyDeals": false,
+    "IsTrue": false,
+    "IsLobbyPopupOffer": false,
+    "StartTime": "2025-09-23T11:00:00Z",
+    "EndTime": "2025-10-03T12:00:00Z",
+    "BackgroundExportName": "offer_xmas",
+    "Currency": 0,
+    "Cost": 0,
+    "OldCost": 0,
+    "SaleStyle": 0,
+    "SaleAmount": 0,
+    "Claim": "v31day4",
+    "Items": [  
+      {
+        "Type": "BrawlBox",
+        "Count": 3,
+        "BrawlerID": 999,
+        "Extra": 999
+      }
+    ]
+  },
+  {
+    "Title": "День 5",
+    "IsDailyDeals": false,
+    "IsTrue": false,
+    "IsLobbyPopupOffer": false,
+    "StartTime": "2025-09-24T11:00:00Z",
+    "EndTime": "2025-10-03T12:00:00Z",
+    "BackgroundExportName": "offer_xmas",
+    "Currency": 0,
+    "Cost": 0,
+    "OldCost": 0,
+    "SaleStyle": 0,
+    "SaleAmount": 0,
+    "Claim": "v31day5",
+    "Items": [  
+      {
+        "Type": "CoinDoubler",
+        "Count": 300,
+        "BrawlerID": 999,
+        "Extra": 999
+      }
+    ]
+  },
+  {
+    "Title": "День 6",
+    "IsDailyDeals": false,
+    "IsTrue": false,
+    "IsLobbyPopupOffer": false,    
+    "StartTime": "2025-09-25T11:00:00Z",
+    "EndTime": "2025-10-03T12:00:00Z",
+    "BackgroundExportName": "offer_xmas",
+    "Currency": 0,
+    "Cost": 0,
+    "OldCost": 0,
+    "SaleStyle": 0,
+    "SaleAmount": 0,
+    "Claim": "v31day6",
+    "Items": [  
+      {
+        "Type": "MegaBox",
+        "Count": 3,
+        "BrawlerID": 999,
+        "Extra": 999
+      }
+    ]
+  },
+  {
+    "Title": "День 7",
+    "IsDailyDeals": false,
+    "IsTrue": false,
+    "IsLobbyPopupOffer": false,
+    "StartTime": "2025-09-26T11:00:00Z",
+    "EndTime": "2025-10-03T12:00:00Z",
+    "BackgroundExportName": "offer_xmas",
+    "Currency": 0,
+    "Cost": 0,
+    "OldCost": 0,
+    "SaleStyle": 0,
+    "SaleAmount": 0,
+    "Claim": "v31day7",
+    "Items": [  
+      {
+        "Type": "Skin",
+        "Count": 1,
+        "BrawlerID": 999,
+        "Extra": 263
+      }
+    ]
+  }
+]        

@@ -1,0 +1,60 @@
+namespace Supercell.Laser.Server.Discord.Commands
+{
+    using NetCord.Services.Commands;
+    using Supercell.Laser.Logic.Home.Items;
+    using Supercell.Laser.Logic.Home.Quest;
+    using Supercell.Laser.Logic.Home.Structures;
+    using Supercell.Laser.Server.Database;
+    using Supercell.Laser.Server.Database.Models;
+
+    public class ResetBrawlPass : CommandModule<CommandContext>
+    {
+        [Command("resetbrawlpass")]
+        public string ResetBrawlPassCommand()
+        {
+            long lastAccId = Accounts.GetMaxAvatarId();
+            if (lastAccId <= 0)
+                return "Нет аккаунтов для обработки.";
+
+            long processedCount = 0;
+
+            for (long accId = 1; accId <= lastAccId; accId++)
+            {
+                Account thisacc = Accounts.LoadNoCache(accId);
+                if (thisacc == null)
+                {
+                    // Пропускаем, если аккаунт не загружен
+                    continue;
+                }
+
+                // Сбрасываем основные значения
+                thisacc.Home.HasPremiumPass = false;
+                thisacc.Home.BrawlPassProgress = 0;
+                thisacc.Home.BrawlPassTokens = 0;
+                thisacc.Home.PremiumPassProgress = 0;
+
+                // Очищаем квесты, если они есть
+                if (thisacc.Home.Quests != null)
+                {
+                    thisacc.Home.Quests.QuestList.Clear();
+                    thisacc.Home.Quests.AddRandomQuests(thisacc.Avatar.Heroes, 6);
+                }
+
+                // Сохраняем аккаунт
+                Accounts.Save(thisacc);
+
+                // Обновляем счётчик обработанных аккаунтов
+                Interlocked.Increment(ref processedCount);
+
+                // Выводим прогресс каждые 100 аккаунтов
+                if (processedCount % 100 == 0 || processedCount == lastAccId)
+                {
+                    double percent = (double)processedCount / lastAccId * 100;
+                    Console.WriteLine($"Обработано: {processedCount} / {lastAccId} аккаунтов ({percent:F2}%)");
+                }
+            }
+
+            return $"Brawl Pass был сброшен для всех пользователей. Обработано: {processedCount} аккаунтов.";
+        }
+    }
+}

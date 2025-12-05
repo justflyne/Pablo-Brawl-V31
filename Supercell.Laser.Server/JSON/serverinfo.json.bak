@@ -1,0 +1,13 @@
+{
+    "LobbyData": "Pablo Brawl\n<cff001c>T<cff0038>G<cff0055>:<cff0071> <cff008d>@<cff00aa>p<cff00c6>a<cff00e2>b<cff00ff>l<ce200ff>o<cc600ff>_<ca900ff>s<c8d00ff>e<c7100ff>r<c5400ff>v<c3800ff>e<c1c00ff>r<c0000ff>s</c>\nПинг: {pingInfo}\nОнлайн: {onlineCount}\nВремя: {currentTime}\nПремиум: {hasPremium}\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n",
+    "Maintenance": false,
+    "MaintenanceTime": "2025-08-17T21:07:00",
+    "MaintenanceReason": "",
+    "BPEndTime": "2025-07-07T11:00:00",
+    "TrophyEndTime": "2025-07-08T11:00:00",
+    "IsEnabledEvent": 0,
+    "ClientVersion": "31.96",
+    "RustoreVersion": "31.96_rustore",
+    "ClientUpdateUrl": "https://t.me/pablo_servers",
+    "RustoreUpdateUrl": "https://www.rustore.ru/catalog/app/prod.pabloservers.com"
+}

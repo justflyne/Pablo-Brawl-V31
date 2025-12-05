@@ -1,0 +1,19 @@
+[  
+  {
+    "Title": "<cff002a>З<cff0054>а<cff007f> <cff00a9>K<cff00d4>S<cfe00fe>D<cff00ff> <cd400ff>P<caa00ff>a<c7f00ff>s<c5500ff>s</c>",
+    "IsDailyDeals": false,
+    "StartTime": "2025-04-29T17:30:00Z",
+    "EndTime": "2025-05-01T11:00:00Z",
+    "BackgroundExportName": "offer_chromatic",
+    "Currency": 0,
+    "Cost": 0,
+    "OldCost": 0,
+    "Claim": "sorryforbrawlpass",
+    "Items": [
+      {
+        "Type": "Gems",
+        "Count": 80
+      }
+    ]
+  }
+]

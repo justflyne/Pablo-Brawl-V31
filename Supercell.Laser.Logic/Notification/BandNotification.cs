@@ -1,0 +1,26 @@
+namespace Supercell.Laser.Logic.Notification
+{
+    using Supercell.Laser.Titan.DataStream;
+    using Supercell.Laser.Logic.Avatar.Structures;
+
+    public class BandNotification : BaseNotification
+    {
+        public PlayerDisplayData PlayerDisplayData;
+
+        public BandNotification(PlayerDisplayData playerDisplayData)
+        {
+            PlayerDisplayData = playerDisplayData;
+        }
+
+        public override void Encode(ByteStream stream)
+        {
+            base.Encode(stream);
+            PlayerDisplayData.Encode(stream);
+        }
+
+        public override int GetNotificationType()
+        {
+            return 82;
+        }
+    }
+}

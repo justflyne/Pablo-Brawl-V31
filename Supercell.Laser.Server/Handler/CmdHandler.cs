@@ -1,0 +1,805 @@
+namespace Supercell.Laser.Server.Handler
+{
+    
+using Supercell.Laser.Logic.Notification;
+using Supercell.Laser.Logic.Message;
+using Supercell.Laser.Logic.Command;
+using Supercell.Laser.Logic.Avatar;
+using Supercell.Laser.Logic.Data;
+using Supercell.Laser.Logic.Home;
+using Supercell.Laser.Logic.Message.Account;
+using Supercell.Laser.Logic.Message.Account.Auth;
+using Supercell.Laser.Logic.Util;
+using Supercell.Laser.Server.Database;
+using Supercell.Laser.Server.Database.Cache;
+using Supercell.Laser.Server.Database.Models;
+using Supercell.Laser.Server.Networking.Session;
+using Supercell.Laser.Server.Utils;
+using Supercell.Laser.Logic.Avatar.Structures;
+using Supercell.Laser.Logic.Club;
+using Supercell.Laser.Logic.Command.Avatar;
+using Supercell.Laser.Logic.Friends;
+using Supercell.Laser.Logic.Home.Structures;
+using Supercell.Laser.Logic.Listener;
+using Supercell.Laser.Logic.Message.Club;
+using Supercell.Laser.Logic.Message.Friends;
+using Supercell.Laser.Logic.Message.Home;
+using Supercell.Laser.Logic.Message.Ranking;
+using Supercell.Laser.Logic.Message.Security;
+using Supercell.Laser.Logic.Message.Team;
+using Supercell.Laser.Logic.Message.Udp;
+using Supercell.Laser.Logic.Stream.Entry;
+using Supercell.Laser.Logic.Team;
+using Supercell.Laser.Server.Logic.Game;
+using Supercell.Laser.Server.Networking;
+using Supercell.Laser.Server.Settings;
+using Supercell.Laser.Server.Logic;
+using System.Diagnostics;
+using Supercell.Laser.Logic.Battle;
+using Supercell.Laser.Logic.Message.Battle;
+using Supercell.Laser.Server.Networking.UDP.Game;
+using Supercell.Laser.Server.Networking.Security;
+using Supercell.Laser.Logic.Home.Items;
+using Supercell.Laser.Logic.Team.Stream;
+using Supercell.Laser.Logic.Message.Team.Stream;
+using Supercell.Laser.Logic.Message.Latency;
+using Supercell.Laser.Logic.Battle.Structures;
+using Newtonsoft.Json.Linq;
+using System.Reflection;
+using System.Numerics;
+using Supercell.Laser.Logic.Home.Quest;
+using Supercell.Laser.Logic.Data.Helper;
+using System.Linq;
+using Supercell.Laser.Logic.Command.Home;
+using System.Xml.Linq;
+using Microsoft.VisualBasic;
+using Org.BouncyCastle.Cms;
+using System;
+
+    public static class CmdHandler
+    {
+        public static void Start()
+        {
+            while (true)
+            {
+                try
+                {
+                    string cmd = Console.ReadLine();
+                    if (cmd == null) continue;
+                    if (!cmd.StartsWith("/")) continue;
+                    cmd = cmd.Substring(1);
+                    string[] args = cmd.Split(" ");
+                    if (args.Length < 1) continue;
+                    switch (args[0])
+                    {
+                        case "ban":
+                            ExecuteBanAccount(args);
+                            break;
+                        case "unban":
+                            ExecuteUnbanAccount(args);
+                            break;
+                        case "changename":
+                            ExecuteChangeNameForAccount(args);
+                            break;
+                        case "getvalue":
+                            ExecuteGetFieldValue(args);
+                            break;
+                        case "changevalue":
+                            ExecuteChangeValueForAccount(args);
+                            break;
+                        case "unlockall":
+                            ExecuteUnlockAllForAccount(args);
+                            break;
+                        case "maintenance":
+                            Console.WriteLine("Starting maintenance...");
+                            ExecuteShutdown();
+                            Console.WriteLine("Maintenance started!");
+                            break;
+                        case "giveprem": 
+                            ExecuteGivePremiumToAccount(args);
+                            break;
+                        case "addgems":
+                            ExecuteGiveGemsToAccount(args);
+                            break;
+                        case "addgold":  
+                        ExecuteGiveGoldToAccount(args);
+                            break;
+                        case "addbrawler":  
+                        ExecuteUnlockBrawler(args);
+                            break;
+                        case "addskin":  
+                        ExecuteUnlockSkin(args);
+                            break;
+                        case "takegold":  
+                        ExecuteTakeGoldFromAccount(args);
+                            break;
+                        case "takegems":
+                        ExecuteTakeGemsFromAccount(args);
+                            break;
+
+
+                    }
+                }
+                catch (Exception) { }
+            }
+        }
+
+        private static void ExecuteUnlockAllForAccount(string[] args)
+        {
+            if (args.Length != 2)
+            {
+                Console.WriteLine("Usage: /unlockall [TAG]");
+                return;
+            }
+
+            long id = LogicLongCodeGenerator.ToId(args[1]);
+            Account account = Accounts.Load(id);
+            if (account == null)
+            {
+                Console.WriteLine("Fail: account not found!");
+                return;
+            }
+
+            for (int i = 0; i < HomeMode.UNLOCKABLE_HEROES_COUNT; i++)
+            {
+                if (!account.Avatar.HasHero(16000000 + i))
+                {
+                    CharacterData character = DataTables.Get(16).GetDataWithId<CharacterData>(i);
+                    CardData card = DataTables.Get(23).GetData<CardData>(character.Name + "_unlock");
+
+                    account.Avatar.UnlockHero(character.GetGlobalId(), card.GetGlobalId());
+                }
+            }
+
+            Logger.Print($"Successfully unlocked all brawlers for account {account.AccountId.GetHigherInt()}-{account.AccountId.GetLowerInt()} ({args[1]})");
+
+            if (Sessions.IsSessionActive(id))
+            {
+                var session = Sessions.GetSession(id);
+                session.GameListener.SendTCPMessage(new AuthenticationFailedMessage()
+                {
+                    Message = "Your account updated!"
+                });
+                Sessions.Remove(id);
+            }
+        }
+
+        private static void ExecuteUnbanAccount(string[] args)
+        {
+            if (args.Length != 2)
+            {
+                Console.WriteLine("Usage: /unban [TAG]");
+                return;
+            }
+
+            long id = LogicLongCodeGenerator.ToId(args[1]);
+            Account account = Accounts.Load(id);
+            if (account == null)
+            {
+                Console.WriteLine("Fail: account not found!");
+                return;
+            }
+
+            account.Avatar.Banned = false;
+            account.Avatar.BanEndTime = DateTime.MinValue;
+            if (Sessions.IsSessionActive(id))
+            {
+                var session = Sessions.GetSession(id);
+                session.GameListener.SendTCPMessage(new AuthenticationFailedMessage()
+                {
+                    Message = "Your account updated!"
+                });
+                Sessions.Remove(id);
+            }
+        }
+
+        private static void ExecuteBanAccount(string[] args)
+{
+    if (args.Length < 3)
+    {
+        Console.WriteLine("Usage: /ban [TAG] [DURATION_DAYS] [REASON]");
+        return;
+    }
+
+    long id = LogicLongCodeGenerator.ToId(args[1]);
+    if (!int.TryParse(args[2], out int durationDays) || durationDays < 0)
+    {
+        Console.WriteLine("Error: Invalid duration. Please provide a valid number of days (0 for permanent ban).");
+        return;
+    }
+
+    string reason = args.Length > 3 ? string.Join(" ", args[3..]) : "Не указана"; // Причина бана
+
+    Account account = Accounts.Load(id);
+    if (account == null)
+    {
+        Console.WriteLine("Fail: Account not found!");
+        return;
+    }
+
+    account.Avatar.Banned = true;
+    account.Home.BanReason = reason;
+
+    if (durationDays >= 2000)
+    {
+        account.Home.BanEndTime = DateTime.MaxValue; // Перманентный бан
+    }
+    else
+    {
+        account.Home.BanEndTime = DateTime.UtcNow.AddDays(durationDays);
+    }
+
+    Accounts.Save(account);
+
+    // Отключение активной сессии
+    if (Sessions.IsSessionActive(id))
+    {
+        var session = Sessions.GetSession(id);
+        session.GameListener.SendTCPMessage(new AuthenticationFailedMessage()
+        {
+            Message = $"Ваш аккаунт был заблокирован на {durationDays} дн.\nПричина: {reason}"
+        });
+        Sessions.Remove(id);
+    }
+
+    string banType = durationDays >= 2000 ? "навсегда" : $"на {durationDays} дней";
+    Console.WriteLine($"Account {args[1]} заблокирован {banType}. Причина: {reason}.");
+}
+
+        private static void ExecuteChangeNameForAccount(string[] args)
+        {
+            if (args.Length != 3)
+            {
+                Console.WriteLine("Usage: /changevalue [TAG] [NewName]");
+                return;
+            }
+
+            long id = LogicLongCodeGenerator.ToId(args[1]);
+            Account account = Accounts.Load(id);
+            if (account == null)
+            {
+                Console.WriteLine("Fail: account not found!");
+                return;
+            }
+
+            account.Avatar.Name = args[2];
+            if (Sessions.IsSessionActive(id))
+            {
+                var session = Sessions.GetSession(id);
+                session.GameListener.SendTCPMessage(new AuthenticationFailedMessage()
+                {
+                    Message = "Your account updated!"
+                });
+                Sessions.Remove(id);
+            }
+        }
+
+        private static void ExecuteGetFieldValue(string[] args)
+        {
+            if (args.Length != 3)
+            {
+                Console.WriteLine("Usage: /changevalue [TAG] [FieldName]");
+                return;
+            }
+
+            long id = LogicLongCodeGenerator.ToId(args[1]);
+            Account account = Accounts.Load(id);
+            if (account == null)
+            {
+                Console.WriteLine("Fail: account not found!");
+                return;
+            }
+
+            Type type = typeof(ClientAvatar);
+            FieldInfo field = type.GetField(args[2]);
+            if (field == null)
+            {
+                Console.WriteLine($"Fail: LogicClientAvatar::{args[2]} not found!");
+                return;
+            }
+
+            int value = (int)field.GetValue(account.Avatar);
+            Console.WriteLine($"LogicClientAvatar::{args[2]} = {value}");
+        }
+        
+        private static void ExecuteUnlockBrawler(string[] args)
+{
+    if (args.Length != 3)
+    {
+        Console.WriteLine("Usage: /addbrawler [TAG] [BRAWLER_ID]");
+        return;
+    }
+
+    string playerTag = args[1];
+    if (!playerTag.StartsWith("#"))
+    {
+        Console.WriteLine("Invalid player tag. Make sure it starts with '#'.");
+        return;
+    }
+
+    if (!int.TryParse(args[2], out int brawlerId))
+    {
+        Console.WriteLine("Error: Invalid Brawler ID.");
+        return;
+    }
+
+    long playerId = LogicLongCodeGenerator.ToId(playerTag);
+    Account account = Accounts.Load(playerId);
+
+    if (account == null)
+    {
+        Console.WriteLine($"User with tag {playerTag} not found.");
+        return;
+    }
+
+    try
+    {
+        int fullBrawlerId = 16000000 + brawlerId;
+        if (account.Avatar.HasHero(fullBrawlerId))
+        {
+            Console.WriteLine($"The player already owns the brawler with ID {brawlerId}.");
+            return;
+        }
+
+        CharacterData character = DataTables
+            .Get(16) // DataType.Character
+            .GetDataWithId<CharacterData>(brawlerId);
+
+        if (character == null)
+        {
+            Console.WriteLine($"Brawler with ID {brawlerId} not found.");
+            return;
+        }
+
+        // Отправка уведомления игроку
+        Notification n = new()
+        {
+            Id = 93,
+            brawlerId = brawlerId,
+            MessageEntry = "<c6>Спасибо за поддержку сервера!</c>"
+        };
+
+        account.Home.NotificationFactory.Add(n);
+
+        LogicAddNotificationCommand acm = new() { Notification = n };
+
+        AvailableServerCommandMessage asm = new() { Command = acm };
+
+        if (Sessions.IsSessionActive(playerId))
+        {
+            Session session = Sessions.GetSession(playerId);
+            session.GameListener.SendTCPMessage(asm);
+        }
+
+        Console.WriteLine($"Боец {character.Name} успешно разблокирован для {playerTag}.");
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"An error occurred while unlocking the brawler: {ex.Message}");
+    }
+}
+
+        private static void ExecuteUnlockSkin(string[] args)
+{
+    if (args.Length != 3)
+    {
+        Console.WriteLine("Usage: /addskin [TAG] [SKIN_ID]");
+        return;
+    }
+
+    string playerTag = args[1];
+    if (!playerTag.StartsWith("#"))
+    {
+        Console.WriteLine("Невалидный тэг игрока. Убедись, что тэг начинается с '#'.");
+        return;
+    }
+
+    if (!int.TryParse(args[2], out int skinId))
+    {
+        Console.WriteLine("Ошибка: некорректный ID скина.");
+        return;
+    }
+
+    long playerId = LogicLongCodeGenerator.ToId(playerTag);
+    Account account = Accounts.Load(playerId);
+
+    if (account == null)
+    {
+        Console.WriteLine($"Пользователь с тегом {playerTag} не найден.");
+        return;
+    }
+
+    try
+    {
+        if (account.Home.UnlockedSkins.Contains(skinId))
+        {
+            Console.WriteLine($"Игрок уже владеет скином с ID {skinId}.");
+            return;
+        }
+
+        SkinData skin = DataTables
+            .Get(DataType.Skin)
+            .GetDataWithId<SkinData>(skinId);
+
+        if (skin == null)
+        {
+            Console.WriteLine($"Скин с ID {skinId} не найден.");
+            return;
+        }                
+
+        // Отправка уведомления игроку
+        Notification n = new()
+        {
+            Id = 94,
+            skin = skinId,
+            MessageEntry = "<c6>Спасибо за поддержку сервера!</c>"
+        };
+
+        account.Home.NotificationFactory.Add(n);
+
+        LogicAddNotificationCommand acm = new() { Notification = n };
+        AvailableServerCommandMessage asm = new() { Command = acm };
+
+        if (Sessions.IsSessionActive(playerId))
+        {
+            Session session = Sessions.GetSession(playerId);
+            session.GameListener.SendTCPMessage(asm);
+        }
+
+        Console.WriteLine($"Скин {skin.Name} успешно разблокирован для {playerTag}.");
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Ошибка при разблокировке скина: {ex.Message}");
+    }
+}
+
+        private static void ExecuteChangeValueForAccount(string[] args)
+        {
+            if (args.Length != 4)
+            {
+                Console.WriteLine("Usage: /changevalue [TAG] [FieldName] [Value]");
+                return;
+            }
+
+            long id = LogicLongCodeGenerator.ToId(args[1]);
+            Account account = Accounts.Load(id);
+            if (account == null)
+            {
+                Console.WriteLine("Fail: account not found!");
+                return;
+            }
+
+            Type type = typeof(ClientAvatar);
+            FieldInfo field = type.GetField(args[2]);
+            if (field == null)
+            {
+                Console.WriteLine($"Fail: LogicClientAvatar::{args[2]} not found!");
+                return;
+            }
+
+            field.SetValue(account.Avatar, int.Parse(args[3]));
+            if (Sessions.IsSessionActive(id))
+            {
+                var session = Sessions.GetSession(id);
+                session.GameListener.SendTCPMessage(new AuthenticationFailedMessage()
+                {
+                    Message = "Your account updated!"
+                });
+                Sessions.Remove(id);
+            }
+        }
+
+        private static void ExecuteGivePremiumToAccount(string[] args)
+        {
+            if (args.Length != 3)
+            {
+                Console.WriteLine("Usage: /giveprem [TAG] [DURATION] (e.g., 30d, 2w, 3m, 1y)");
+                return;
+            }       
+
+            bool sc = false;
+            long id = 0;
+            
+            if (args[1].StartsWith('#'))
+            {
+                id = LogicLongCodeGenerator.ToId(args[1]);
+            }
+            else
+            {
+                sc = true;
+            if (!long.TryParse(args[1], out id))
+            {
+                Console.WriteLine("Error: Invalid ID format.");
+                return;
+            }
+        }
+
+        Account account = Accounts.Load(id);
+        if (account == null)
+        {
+            Console.WriteLine($"Error: Invalid tag: {id}");
+            return;
+        }
+
+        int duration = 0;
+        if (account.Home.PremiumEndTime < DateTime.UtcNow)
+        {
+            account.Home.PremiumEndTime = DateTime.UtcNow.AddMonths(duration);
+        }
+        else
+        {
+            account.Home.PremiumEndTime = account.Home.PremiumEndTime.AddMonths(duration);
+        }
+            
+        account.Avatar.PremiumLevel = 1;
+
+        string formattedDate = account.Home.PremiumEndTime.ToString("dd'th of' MMMM yyyy");
+
+        Notification n = new()
+        {
+            Id = 89,
+            DonationCount = 170,
+            MessageEntry =
+            $"<c6>Pablo Premium активирован/продлён до {account.Home.PremiumEndTime} UTC! ({formattedDate})</c>"
+        };
+
+        account.Home.NotificationFactory.Add(n);
+
+        LogicAddNotificationCommand acm = new() { Notification = n };
+
+        AvailableServerCommandMessage asm = new() { Command = acm };
+
+        if (Sessions.IsSessionActive(id))
+        {
+            Session session = Sessions.GetSession(id);
+            session.GameListener.SendTCPMessage(asm);
+        }        
+
+        string d = sc ? LogicLongCodeGenerator.ToCode(id) : args[1];
+        Console.WriteLine($"Done: set vip status for {d} activated/extended to {account.Home.PremiumEndTime} UTC!");
+    }
+
+        private static void ExecuteGiveGemsToAccount(string[] args)
+        {
+            if (args.Length != 3)
+            {
+                Console.WriteLine("Usage: /gems [TAG] [Amount]");
+                return;
+            }
+
+            bool sc = false;
+            long id = 0;
+            if (args[1].StartsWith('#'))
+            {
+                id = LogicLongCodeGenerator.ToId(args[1]);
+            }
+            else
+            {
+                sc = true;
+                id = long.Parse(args[1]);
+            }
+
+            if (!int.TryParse(args[2], out int amount) || amount <= 0)
+            {
+                Console.WriteLine("Error: Invalid amount. Amount must be a positive number.");
+                return;
+            }
+
+            Account account = Accounts.Load(id);
+            if (account == null)
+            {
+                Console.WriteLine($"Error: Invalid tag: {id}");
+                return;
+            }
+
+            
+            account.Avatar.Diamonds += amount;
+
+            
+            Notification nGems = new()
+            {
+                Id = 89,
+                DonationCount = amount,
+                MessageEntry = $"<c6>Ваши {amount} гемов, спасибо за поддержку сервера!</c>"
+            };
+            account.Home.NotificationFactory.Add(nGems);
+            LogicAddNotificationCommand acmGems = new() { Notification = nGems };
+            AvailableServerCommandMessage asmGems = new();
+            asmGems.Command = acmGems;
+
+            if (Sessions.IsSessionActive(id))
+            {
+                Session sessionGems = Sessions.GetSession(id);
+                sessionGems.GameListener.SendTCPMessage(asmGems);
+            }
+
+            string d = sc ? LogicLongCodeGenerator.ToCode(long.Parse(args[1])) : args[1];
+            Console.WriteLine($"Done: {amount} gems added to account {d}!");
+        }
+        
+        private static void ExecuteGiveGoldToAccount(string[] args)
+        {
+            if (args.Length != 3)
+            {
+                Console.WriteLine("Usage: /addgold [TAG] [Amount]");
+                return;
+            }
+
+            bool sc = false;
+            long id = 0;
+            if (args[1].StartsWith('#'))
+            {
+                id = LogicLongCodeGenerator.ToId(args[1]);
+            }
+            else
+            {
+                sc = true;
+                id = long.Parse(args[1]);
+            }
+
+            if (!int.TryParse(args[2], out int amount) || amount <= 0)
+            {
+                Console.WriteLine("Error: Invalid amount. Amount must be a positive number.");
+                return;
+            }
+
+            Account account = Accounts.Load(id);
+            if (account == null)
+            {
+                Console.WriteLine($"Error: Invalid tag: {id}");
+                return;
+            }
+
+            
+            account.Avatar.Gold += amount;
+
+            
+            Notification nGems = new()
+            {
+                Id = 90,
+                DonationCount = amount,
+                MessageEntry = $"<c6>Ваши {amount} монет, спасибо за поддержку сервера!</c>"
+            };
+            account.Home.NotificationFactory.Add(nGems);
+            LogicAddNotificationCommand acmGems = new() { Notification = nGems };
+            AvailableServerCommandMessage asmGems = new();
+            asmGems.Command = acmGems;
+
+            if (Sessions.IsSessionActive(id))
+            {
+                Session sessionGems = Sessions.GetSession(id);
+                sessionGems.GameListener.SendTCPMessage(asmGems);
+            }
+
+            string d = sc ? LogicLongCodeGenerator.ToCode(long.Parse(args[1])) : args[1];
+            Console.WriteLine($"Done: {amount} gems added to account {d}!");
+        }
+        
+        private static void ExecuteTakeGoldFromAccount(string[] args)
+{
+    if (args.Length != 3)
+    {
+        Console.WriteLine("Usage: /takegold [TAG] [Amount]");
+        return;
+    }
+
+    bool sc = false;
+    long id = 0;
+    if (args[1].StartsWith('#'))
+    {
+        id = LogicLongCodeGenerator.ToId(args[1]);
+    }
+    else
+    {
+        sc = true;
+        id = long.Parse(args[1]);
+    }
+
+    if (!int.TryParse(args[2], out int amount) || amount <= 0)
+    {
+        Console.WriteLine("Error: Invalid amount. Amount must be a positive number.");
+        return;
+    }
+
+    Account account = Accounts.Load(id);
+    if (account == null)
+    {
+        Console.WriteLine($"Error: Invalid tag: {id}");
+        return;
+    }
+
+    // Reduce gold
+    account.Avatar.Gold -= amount;
+
+    // Create notification
+    Notification nGold = new()
+    {
+        Id = 81,
+        DonationCount = amount,
+        MessageEntry = $"У вас было списано {amount} монет."
+    };
+    account.Home.NotificationFactory.Add(nGold);
+    LogicAddNotificationCommand acmGold = new() { Notification = nGold };
+    AvailableServerCommandMessage asmGold = new();
+    asmGold.Command = acmGold;
+
+    if (Sessions.IsSessionActive(id))
+    {
+        Session sessionGold = Sessions.GetSession(id);
+        sessionGold.GameListener.SendTCPMessage(asmGold);
+    }
+
+    string d = sc ? LogicLongCodeGenerator.ToCode(long.Parse(args[1])) : args[1];
+    Console.WriteLine($"Done: {amount} gems taken from account {d}. New balance: {account.Avatar.Diamonds} gems.");
+}
+
+        private static void ExecuteTakeGemsFromAccount(string[] args)
+{
+    if (args.Length != 3)
+    {
+        Console.WriteLine("Usage: /takegems [TAG] [Amount]");
+        return;
+    }
+
+    bool sc = false;
+    long id = 0;
+    if (args[1].StartsWith('#'))
+    {
+        id = LogicLongCodeGenerator.ToId(args[1]);
+    }
+    else
+    {
+        sc = true;
+        id = long.Parse(args[1]);
+    }
+
+    if (!int.TryParse(args[2], out int amount) || amount <= 0)
+    {
+        Console.WriteLine("Error: Invalid amount. Amount must be a positive number.");
+        return;
+    }
+
+    Account account = Accounts.Load(id);
+    if (account == null)
+    {
+        Console.WriteLine($"Error: Invalid tag: {id}");
+        return;
+    }
+
+    // Reduce gold
+    account.Avatar.Diamonds -= amount;
+
+    // Create notification
+    Notification nGold = new()
+    {
+        Id = 81,
+        DonationCount = amount,
+        MessageEntry = $"У вас было списано {amount} гемов."
+    };
+    account.Home.NotificationFactory.Add(nGold);
+    LogicAddNotificationCommand acmGold = new() { Notification = nGold };
+    AvailableServerCommandMessage asmGold = new();
+    asmGold.Command = acmGold;
+
+    if (Sessions.IsSessionActive(id))
+    {
+        Session sessionGold = Sessions.GetSession(id);
+        sessionGold.GameListener.SendTCPMessage(asmGold);
+    }
+
+    string d = sc ? LogicLongCodeGenerator.ToCode(long.Parse(args[1])) : args[1];
+    Console.WriteLine($"Done: {amount} gems taken from account {d}. New balance: {account.Avatar.Diamonds} gems.");
+}
+
+        private static void ExecuteShutdown()
+        {
+            Sessions.StartShutdown();
+            AccountCache.SaveAll();
+            AllianceCache.SaveAll();
+
+            AccountCache.Started = false;
+            AllianceCache.Started = false;
+        }
+    }
+}

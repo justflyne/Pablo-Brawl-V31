@@ -1,0 +1,13 @@
+{
+  "port": 9339,
+  "udp_host": "87.120.166.3",
+  "udp_port": 7777,
+  "mysql_host": "127.0.0.1",
+  "mysql_port": 3306,
+  "mysql_username": "flyne",
+  "mysql_password": "",
+  "mysql_database": "",
+  "anti-ddos": true,
+  "BotToken": "",
+  "ChannelId": 1234567890123456789
+}

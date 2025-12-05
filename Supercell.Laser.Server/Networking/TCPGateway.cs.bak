@@ -1,0 +1,489 @@
+using System.Net;
+using System.Net.Sockets;
+using Supercell.Laser.Server.Networking.Session;
+using Supercell.Laser.Server.Settings;
+using Supercell.Laser.Server.Database;
+using Supercell.Laser.Server.Database.Models;
+using Supercell.Laser.Logic.Home;
+using Supercell.Laser.Logic.Avatar;
+using Supercell.Laser.Logic.Message;
+using Supercell.Laser.Logic.Message.Account.Auth;
+using Supercell.Laser.Server.Message;
+
+namespace Supercell.Laser.Server.Networking
+{
+    public static class IPBlacklist
+    {
+        private static readonly string BlacklistFilePath = "ipblacklist.txt";
+        private static readonly string BanCountryFilePath = "ban_country.txt";
+        private static readonly object FileLock = new object();
+        private static HashSet<string> BlockedIPs = new HashSet<string>();
+        private static HashSet<string> BlockedCountries = new HashSet<string>();
+        private static FileSystemWatcher FileWatcher;
+
+        public static void Initialize()
+        {
+            LoadBlacklist();
+            SetupFileWatcher();
+        }
+
+        public static void LoadBlacklist()
+        {
+            lock (FileLock)
+            {
+                if (!File.Exists(BlacklistFilePath))
+                {
+                    File.Create(BlacklistFilePath).Close();
+                    Logger.Print("Создан файл ipblacklist.txt.");
+                }
+                if (!File.Exists(BanCountryFilePath))
+                {
+                    File.Create(BanCountryFilePath).Close();
+                    Logger.Print("Создан файл ban_country.txt.");
+                }
+
+                BlockedIPs = File.ReadAllLines(BlacklistFilePath)
+                    .Where(ip => !string.IsNullOrWhiteSpace(ip))
+                    .ToHashSet();
+
+                Logger.Print($"Загружено {BlockedIPs.Count} IP с ipblacklist.txt.");
+                
+                BlockedCountries = File.ReadAllLines(BanCountryFilePath)
+                    .Where(country => !string.IsNullOrWhiteSpace(country))
+                    .ToHashSet();
+
+                Logger.Print($"Загружено {BlockedCountries.Count} IP с ban_country.txt.");
+            }
+        }
+
+        public static void SetupFileWatcher()
+        {
+            FileWatcher = new FileSystemWatcher
+            {
+                Path = Directory.GetCurrentDirectory(),
+                Filter = BanCountryFilePath,
+                NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName
+            };
+
+            FileWatcher.Changed += OnBlacklistFileChanged;
+            FileWatcher.Created += OnBlacklistFileChanged;
+            FileWatcher.Deleted += OnBlacklistFileChanged;
+            FileWatcher.Renamed += OnBlacklistFileChanged;
+
+            FileWatcher.EnableRaisingEvents = true;
+            Logger.Print("Чекер файла для ban_country.txt запущен.");
+        }
+        public static void SetupCountryFileWatcher()
+        {
+            FileWatcher = new FileSystemWatcher
+            {
+                Path = Directory.GetCurrentDirectory(),
+                Filter = BlacklistFilePath,
+                NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName
+            };
+
+            FileWatcher.Changed += OnBlacklistFileChanged;
+            FileWatcher.Created += OnBlacklistFileChanged;
+            FileWatcher.Deleted += OnBlacklistFileChanged;
+            FileWatcher.Renamed += OnBlacklistFileChanged;
+
+            FileWatcher.EnableRaisingEvents = true;
+            Logger.Print("Чекер файла для blacklist.txt запущен.");
+        }
+
+        private static void OnBlacklistFileChanged(object sender, FileSystemEventArgs e)
+        {
+            Logger.Print($"ipblacklist.txt изменён. Обновляю черный список...");
+            LoadBlacklist();
+        }
+        private static void OnBanCountryFileChanged(object sender, FileSystemEventArgs e)
+        {
+            Logger.Print($"ban_country.txt изменён. Обновляю черный список...");
+            LoadBlacklist();
+        }
+
+        public static void BlockIP(string ip)
+        {
+            lock (FileLock)
+            {
+                if (BlockedIPs.Add(ip))
+                {
+                    File.AppendAllLines(BlacklistFilePath, new[] { ip });
+                    Logger.Print($"IP {ip} добавлен в черный список и сохранен в ipblacklist.txt.");
+                }
+            }
+        }
+        public static void BlockCountry(string country)
+        {
+            lock (FileLock)
+            {
+                if (BlockedCountries.Add(country))
+                {
+                    File.AppendAllLines(BanCountryFilePath, new[] { country });
+                    Logger.Print($"Страна {country} добавлен в черный список и сохранен в ban_country.txt.");
+                }
+            }
+        }
+
+        public static bool IsIPBlocked(string ip)
+        {
+            return BlockedIPs.Contains(ip);
+        }
+        
+        public static bool IsCountryBlocked(string country)
+        {
+            return BlockedCountries.Contains(country);
+        }
+    }
+
+    public static class TCPGateway
+    {        
+        private static List<Connection> ActiveConnections = new List<Connection>();
+        private static Dictionary<string, PacketCounter> PacketCounters = new Dictionary<string, PacketCounter>();
+        private static Dictionary<string, ConnectionAttemptCounter> ConnectionAttempts = new Dictionary<string, ConnectionAttemptCounter>();
+        private static Dictionary<string, DateTime> LastLogTimes = new Dictionary<string, DateTime>();
+
+        private static Socket Socket;
+        private static Thread Thread;
+        private static Timer CleanupTimer;
+
+        private static ManualResetEvent AcceptEvent = new ManualResetEvent(false);
+        private static readonly object ConnectionLock = new object();
+
+        public static void Init(string host, int port)
+        {
+            if (Configuration.Instance.antiddos)
+            {
+                IPBlacklist.Initialize();
+            }
+
+            Socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+            Socket.Bind(new IPEndPoint(IPAddress.Parse(host), port));
+            Socket.Listen(99999999);
+
+            Thread = new Thread(Update);
+            Thread.Start();
+
+            CleanupTimer = new Timer(CleanupInactiveConnections, null, 10000, 10000);
+
+            Logger.Print($"TCP Сервер запущен на {host}:{port}");
+        }
+
+        private static void Update()
+        {
+            while (true)
+            {
+                AcceptEvent.Reset();
+                Socket.BeginAccept(new AsyncCallback(OnAccept), null);
+                AcceptEvent.WaitOne();
+            }
+        }
+        
+        private static async Task<string> GetCountryByIP(string ip)
+{
+    try
+    {
+        string apiKey = "0b46cbaf3b8fd8";
+        string url = $"https://ipinfo.io/{ip}/json?token={apiKey}";
+        
+        using (HttpClient client = new HttpClient())
+        {
+            string response = await client.GetStringAsync(url);
+            dynamic data = Newtonsoft.Json.JsonConvert.DeserializeObject(response);
+            return data.country;
+        }
+    }
+    catch (Exception ex)
+    {
+        Logger.Print($"Ошибка при получении данных по IP {ip}: {ex.Message}");
+        return null;
+    }
+}
+
+        private static void OnAccept(IAsyncResult ar)
+{
+    try
+    {
+        Socket client = Socket.EndAccept(ar);
+        string countryIp = ((IPEndPoint)client.RemoteEndPoint).Address.ToString();
+        string clientIp = (client.RemoteEndPoint).ToString().Split(':')[0];
+        Connection connection = new Connection(client);
+
+        Task.Run(async () =>
+        {
+            string country = await GetCountryByIP(countryIp);            
+
+            if (IPBlacklist.IsCountryBlocked(country))
+            {
+                AuthenticationFailedMessage loginFailed = new AuthenticationFailedMessage();
+                loginFailed.ErrorCode = 1;
+                loginFailed.Message = "Login is not allowed from your current location.";
+                connection.Send(loginFailed);
+                Logger.Print($"Подключение от {clientIp} заблокировано. Страна: {country}.");                
+                AcceptEvent.Set();
+                return;
+            }            
+
+            if (Configuration.Instance.antiddos && IPBlacklist.IsIPBlocked(clientIp) && clientIp != "127.0.0.1")
+            {
+                LogIfNeeded(clientIp, $"Обнаружено: IP {clientIp} заблокирован.");
+                client.Close();
+                AcceptEvent.Set();
+                return;
+            }
+
+            if (Configuration.Instance.antiddos)
+            {
+                HandleConnectionAttempt(clientIp);
+            }
+
+            lock (ConnectionLock)
+            {
+                ActiveConnections.Add(connection);
+            }
+            if (clientIp != "127.0.0.1")
+            {
+                Logger.Print($"Новое подключение от {clientIp}.");
+            }
+
+            Connections.AddConnection(connection);
+            client.BeginReceive(
+                connection.ReadBuffer,
+                0,
+                1024,
+                SocketFlags.None,
+                new AsyncCallback(OnReceive),
+                connection
+            );
+        });
+    }
+    catch (Exception ex)
+    {
+        Logger.Print($"Error accepting connection: {ex.Message}");
+    }
+    finally
+    {
+        AcceptEvent.Set();
+    }
+}
+
+        private static void HandleConnectionAttempt(string clientIp)
+        {
+            if (!ConnectionAttempts.ContainsKey(clientIp))
+            {
+                ConnectionAttempts[clientIp] = new ConnectionAttemptCounter();
+            }
+
+            var attemptCounter = ConnectionAttempts[clientIp];
+            attemptCounter.AttemptCount++;
+            if ((DateTime.Now - attemptCounter.FirstAttemptTime).TotalSeconds > 10)
+            {
+                attemptCounter.FirstAttemptTime = DateTime.Now;
+                attemptCounter.AttemptCount = 1;
+            }
+
+            if (attemptCounter.AttemptCount > 4 && clientIp != "127.0.0.1")
+            {
+                IPBlacklist.BlockIP(clientIp);
+                Logger.Print($"IP {clientIp} заблокирован за большое кол-во попыток входа.");
+            }
+        }
+
+        private static void OnReceive(IAsyncResult ar)
+        {
+            Connection connection = (Connection)ar.AsyncState;
+            if (connection == null || connection.Socket == null || !connection.Socket.Connected)
+                return;
+
+            string clientIp = ((IPEndPoint)connection.Socket.RemoteEndPoint).Address.ToString();
+
+            try
+            {
+                int bytesRead = connection.Socket.EndReceive(ar);
+                if (bytesRead <= 0 && clientIp != "127.0.0.1")
+                {
+                    Logger.Print($"{clientIp} отключился.");
+                    RemoveConnection(connection);
+                    return;
+                }
+
+                if (Configuration.Instance.antiddos)
+                {
+                    HandlePacketCounter(clientIp);
+                }
+
+                connection.Memory.Write(connection.ReadBuffer, 0, bytesRead);
+                connection.UpdateLastActiveTime();
+
+                if (connection.Messaging.OnReceive() != 0 && clientIp != "127.0.0.1")
+                {
+                    RemoveConnection(connection);
+                    Logger.Print($"{clientIp} отключился.");
+                    return;
+                }
+                connection.Socket.BeginReceive(
+                    connection.ReadBuffer,
+                    0,
+                    1024,
+                    SocketFlags.None,
+                    new AsyncCallback(OnReceive),
+                    connection
+                );
+            }
+            catch (ObjectDisposedException)
+            {
+                Logger.Print($"Сокет клиента {clientIp} был уже закрыт.");
+            }
+            catch (SocketException)
+            {
+                RemoveConnection(connection);
+                Logger.Print($"{clientIp} отключился из за ошибки сокета.");
+            }
+            catch (Exception ex)
+            {
+                Logger.Print($"Неожиданная ошибка от {clientIp}: {ex.Message}");
+                RemoveConnection(connection);
+            }
+        }
+
+        private static void HandlePacketCounter(string clientIp)
+        {
+            if (!PacketCounters.ContainsKey(clientIp))
+            {
+                PacketCounters[clientIp] = new PacketCounter();
+            }
+
+            var counter = PacketCounters[clientIp];
+            counter.PacketCount++;
+            if ((DateTime.Now - counter.FirstPacketTime).TotalSeconds > 10)
+            {
+                counter.FirstPacketTime = DateTime.Now;
+                counter.PacketCount = 1;
+            }
+
+            if (counter.PacketCount > 100 && clientIp != "127.0.0.1")
+            {
+                IPBlacklist.BlockIP(clientIp);
+                Logger.Print($"IP {clientIp} заблокирован за превышение лимита пакетов.");
+            }
+        }
+
+        private static void CleanupInactiveConnections(object state)
+        {
+            DateTime now = DateTime.Now;
+            var connectionsToRemove = new List<Connection>();
+
+            lock (ConnectionLock)
+            {
+                for (int i = ActiveConnections.Count - 1; i >= 0; i--)
+                {
+                    var connection = ActiveConnections[i];
+
+                    if (connection != null && connection.Socket != null)
+                    {
+                        if (connection.Socket.Connected)
+                        {
+                            if ((now - connection.LastActiveTime).TotalSeconds > 120)
+                            {
+                                Logger.Print(
+                                    $"Закрываю неактивное соединение от {connection.Socket.RemoteEndPoint}."
+                                );
+                                connectionsToRemove.Add(connection);
+                            }
+                        }
+                        else
+                        {
+                            Logger.Print($"Сокет уже закрыт и скоро будет удалён.");
+                            connectionsToRemove.Add(connection);
+                        }
+                    }
+                    else
+                    {
+                        Logger.Print("Подключение или сокет неизвестен, отключаем.");
+                        connectionsToRemove.Add(connection);
+                    }
+                }
+
+                foreach (var conn in connectionsToRemove)
+                {
+                    ActiveConnections.Remove(conn);
+                    conn.Close();
+                }
+            }
+        }
+
+        private static void RemoveConnection(Connection connection)
+        {
+            lock (ConnectionLock)
+            {
+                if (ActiveConnections.Contains(connection))
+                {
+                    ActiveConnections.Remove(connection);
+                }
+                connection.Close();
+                if (connection.MessageManager.HomeMode != null)
+                {
+                    Sessions.Remove(connection.Avatar.AccountId);
+                }
+            }
+        }
+
+        private static void LogIfNeeded(string clientIp, string message)
+        {
+            if (
+                !LastLogTimes.ContainsKey(clientIp)
+                || (DateTime.Now - LastLogTimes[clientIp]).TotalSeconds >= 10
+            )
+            {
+                Logger.Print(message);
+                LastLogTimes[clientIp] = DateTime.Now;
+            }
+        }
+        
+        private static void SendAuthenticationFailed(Connection connection, int errorCode, string message)
+        {
+            connection.Send(new AuthenticationFailedMessage
+            {
+                ErrorCode = errorCode,
+                Message = message
+            });
+        }
+
+        public static void OnSend(IAsyncResult ar)
+        {
+            try
+            {
+                Socket socket = (Socket)ar.AsyncState;
+                socket.EndSend(ar);
+            }
+            catch (Exception ex)
+            {
+                Logger.Print($"Ошибка при отправке даты: {ex.Message}");
+            }
+        }
+    }
+
+    public class PacketCounter
+    {
+        public DateTime FirstPacketTime { get; set; }
+        public int PacketCount { get; set; }
+
+        public PacketCounter()
+        {
+            FirstPacketTime = DateTime.Now;
+            PacketCount = 0;
+        }
+    }
+
+    public class ConnectionAttemptCounter
+    {
+        public DateTime FirstAttemptTime { get; set; }
+        public int AttemptCount { get; set; }
+
+        public ConnectionAttemptCounter()
+        {
+            FirstAttemptTime = DateTime.Now;
+            AttemptCount = 0;
+        }
+    }
+}

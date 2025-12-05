@@ -1,0 +1,90 @@
+namespace Supercell.Laser.Server.Discord.Commands
+{
+    using NetCord.Services.Commands;
+    using Supercell.Laser.Logic.Data;
+    using Supercell.Laser.Logic.Home.Structures;
+    using Supercell.Laser.Logic.Message.Account.Auth;
+    using Supercell.Laser.Logic.Util;
+    using Supercell.Laser.Server.Database;
+    using Supercell.Laser.Server.Database.Models;
+    using Supercell.Laser.Server.Networking.Session;
+
+    public class RemoveBrawler : CommandModule<CommandContext>
+    {
+        [Command("removebrawler")]
+        public static string RemoveBrawlerCommand(string playerTag, int brawlerId)
+        {
+            if (!playerTag.StartsWith("#"))
+            {
+                return "Невалидный тэг игрока. Убедись что тэг начинается с '#'.";
+            }
+
+            long playerId = LogicLongCodeGenerator.ToId(playerTag);
+            Account account = Accounts.Load(playerId);
+
+            if (account == null)
+            {
+                return $"User with tag {playerTag} not found.";
+            }
+
+            try
+            {               
+                string fullBrawlerId = brawlerId.ToString();
+                if (fullBrawlerId.Length == 3) 
+                {
+                    fullBrawlerId = "16000" + fullBrawlerId;
+                }
+                else if (fullBrawlerId.Length == 2) 
+                {
+                    fullBrawlerId = "160000" + fullBrawlerId;
+                }
+                else if (fullBrawlerId.Length == 1)
+                {
+                    fullBrawlerId = "1600000" + fullBrawlerId;
+                }
+                else
+                {
+                    return "Неверный формат ID скина.";
+                }
+
+                int finalBrawlerId = int.Parse(fullBrawlerId);              
+
+                var heroToUnlock = account.Avatar.Heroes.FirstOrDefault(h => h.CharacterId == finalBrawlerId);
+                if (heroToUnlock == null)
+                {
+                    return $"Юзер не владеет бойцом с айди {finalBrawlerId}.";
+                }
+
+                CharacterData brawler = DataTables
+                    .Get(DataType.Character)
+                    .GetDataWithId<CharacterData>(finalBrawlerId);
+
+                if (brawler == null)
+                {
+                    return $"Brawler with ID {finalBrawlerId} not found.";
+                }
+
+                account.Avatar.Heroes.Remove(heroToUnlock);
+
+
+                if (Sessions.IsSessionActive(playerId))
+                {
+                    Session session = Sessions.GetSession(playerId);
+                    session.GameListener.SendTCPMessage(
+                        new Supercell.Laser.Logic.Message.Account.Auth.AuthenticationFailedMessage
+                        {
+                            Message = $"Боец {brawler.Name} был заблокирован!"
+                        }
+                    );
+                    Sessions.Remove(playerId);
+                }
+
+                return $"Боец {brawler.Name} успешно был заблокирован для {playerTag}.";
+            }
+            catch (Exception ex)
+            {
+                return $"An error occurred while locking the brawler: {ex.Message}";
+            }
+        }
+    }
+}

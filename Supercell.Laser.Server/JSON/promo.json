@@ -1,0 +1,135 @@
+{
+  "Promocodes": [
+    {
+      "Code": "NEWPATCH",
+      "MaxActivations": 80,
+      "ActivationHistory": [
+        16,
+        9083,
+        9064,
+        9227
+      ],
+      "StartTime": "2025-04-01T10:00:00+03:00",
+      "EndTime": "2026-07-01T11:00:00+03:00",
+      "Items": [
+        {
+          "Type": "gems",
+          "Count": 170
+        }
+      ]
+    },
+    {
+      "Code": "OMEGABOX",
+      "MaxActivations": 69696,
+      "ActivationHistory": [],
+      "StartTime": "2025-04-01T10:00:00+03:00",
+      "EndTime": "2026-07-01T11:00:00+03:00",
+      "Items": [
+        {
+          "Type": "omegabox",
+          "Count": 1
+        }
+      ]
+    },
+    {
+      "Code": "MEGABOX",
+      "MaxActivations": 888,
+      "ActivationHistory": [],
+      "StartTime": "2025-04-01T10:00:00+03:00",
+      "EndTime": "2026-07-01T11:00:00+03:00",
+      "Items": [
+        {
+          "Type": "megabox",
+          "Count": 1
+        }
+      ]
+    },
+    {
+      "Code": "BIGBOX",
+      "MaxActivations": 886,
+      "ActivationHistory": [],
+      "StartTime": "2025-04-01T10:00:00+03:00",
+      "EndTime": "2026-07-01T11:00:00+03:00",
+      "Items": [
+        {
+          "Type": "bigbox",
+          "Count": 1
+        }
+      ]
+    },
+    {
+      "Code": "BRAWLBOX",
+      "MaxActivations": 888,
+      "ActivationHistory": [],
+      "StartTime": "2025-04-01T10:00:00+03:00",
+      "EndTime": "2026-07-01T11:00:00+03:00",
+      "Items": [
+        {
+          "Type": "brawlbox",
+          "Count": 1
+        }
+      ]
+    },
+    {
+      "Code": "3OMEGABOX",
+      "MaxActivations": 881,
+      "ActivationHistory": [],
+      "StartTime": "2025-04-01T10:00:00+03:00",
+      "EndTime": "2026-07-01T11:00:00+03:00",
+      "Items": [
+        {
+          "Type": "omegabox",
+          "Count": 3
+        }
+      ]
+    },
+    {
+      "Code": "3MEGABOX",
+      "MaxActivations": 889,
+      "ActivationHistory": [],
+      "StartTime": "2025-04-01T10:00:00+03:00",
+      "EndTime": "2026-07-01T11:00:00+03:00",
+      "Items": [
+        {
+          "Type": "megabox",
+          "Count": 3
+        }
+      ]
+    },
+    {
+      "Code": "ppp",
+      "MaxActivations": 889,
+      "ActivationHistory": [],
+      "StartTime": "2025-04-01T10:00:00+03:00",
+      "EndTime": "2026-07-01T11:00:00+03:00",
+      "Items": [
+        {
+          "Type": "gems",
+          "Count": 3
+        }
+      ]
+    },
+    {
+      "Code": "THXFOR600SUBS",
+      "MaxActivations": 1881,
+      "ActivationHistory": [
+        1,
+        9083,
+        9064,
+        9227
+      ],
+      "StartTime": "2025-04-01T10:00:00+03:00",
+      "EndTime": "2026-07-06T11:00:00+03:00",
+      "Items": [
+        {
+          "Type": "gems",
+          "Count": 170
+        },
+        {
+          "Type": "megabox",
+          "Count": 6
+        }
+      ]
+    }
+  ]
+}

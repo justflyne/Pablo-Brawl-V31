@@ -1,0 +1,62 @@
+namespace Supercell.Laser.Server.Discord.Commands
+{
+    using NetCord.Services.Commands;
+    using Supercell.Laser.Logic.Data;
+    using Supercell.Laser.Logic.Home.Structures;
+    using Supercell.Laser.Logic.Message.Account.Auth;
+    using Supercell.Laser.Logic.Util;
+    using Supercell.Laser.Server.Database;
+    using Supercell.Laser.Server.Database.Models;
+    using Supercell.Laser.Server.Networking.Session;
+
+    public class ListBrawlerCommand : CommandModule<CommandContext>
+    {
+        [Command("listbrawler")]
+        public static string GetBrawlersCommand(string playerTag)
+        {
+            if (!playerTag.StartsWith("#"))
+            {
+                return "Невалидный тэг игрока. Убедись что тэг начинается с '#'.";
+            }
+
+            long playerId = LogicLongCodeGenerator.ToId(playerTag);
+            Account account = Accounts.Load(playerId);
+
+            if (account == null)
+            {
+                return $"User with tag {playerTag} not found.";
+            }
+
+            try
+            {
+                // Получаем все разблокированные скины игрока
+                var unlockedBrawlers = account.Avatar.Heroes;
+
+                if (unlockedBrawlers.Count == 0)
+                {
+                    return $"Игрок {playerTag} не имеет разблокированных бойцов.";
+                }
+
+                // Формируем строку для вывода
+                string brawlersList = "Разблокированные бойцы:\n";
+                foreach (var hero in unlockedBrawlers)
+                {
+                    CharacterData brawler = DataTables
+                        .Get(DataType.Character)
+                        .GetDataWithId<CharacterData>(hero.Id);
+
+                    if (brawler != null)
+                    {
+                        brawlersList += $"- {brawler.Name} (ID: {hero.Id})\n";
+                    }
+                }
+
+                return brawlersList;
+            }
+            catch (Exception ex)
+            {
+                return $"Произошла ошибка при получении списка скинов: {ex.Message}";
+            }
+        }
+    }
+}

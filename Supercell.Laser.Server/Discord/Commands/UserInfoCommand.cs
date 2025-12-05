@@ -1,0 +1,107 @@
+namespace Supercell.Laser.Server.Discord.Commands
+{
+    using NetCord.Services.Commands;
+    using Supercell.Laser.Server.Utils;
+    using Supercell.Laser.Logic.Util;
+    using Supercell.Laser.Server.Database;
+    using Supercell.Laser.Server.Database.Models;
+    using System;
+
+    public class UserInfo : CommandModule<CommandContext>
+    {
+        [Command("userinfo")]
+        public static string UserInfoCommand([CommandParameter(Remainder = true)] string playerId)
+        {
+            if (!playerId.StartsWith("#"))
+            {
+                return "Невалидный айди юзера. Убедись в том что айди начинается с '#'.";
+            }
+
+            long lowID = LogicLongCodeGenerator.ToId(playerId);
+            Account account = Accounts.Load(lowID);
+
+            if (account == null)
+            {
+                return $"Не найден юзер с таким айди {playerId}.";
+            }
+            
+            string firstIpAddress = ConvertInfoToData(account.Home.FirstIpAddress);
+            string ipAddress = ConvertInfoToData(account.Home.IpAddress);
+            string lastLoginTime = account.Home.LastVisitHomeTime.ToString();
+            string device = ConvertInfoToData(account.Home.Device);
+            string deviceid = ConvertInfoToData(account.Home.AndroidId);
+            string name = ConvertInfoToData(account.Avatar.Name);
+            string token = ConvertInfoToData(account.Avatar.PassToken);
+            string soloWins = ConvertInfoToData(account.Avatar.SoloWins);
+            string duoWins = ConvertInfoToData(account.Avatar.DuoWins);
+            string trioWins = ConvertInfoToData(account.Avatar.TrioWins);
+            string trophies = ConvertInfoToData(account.Avatar.Trophies);
+            string banned = ConvertInfoToData(account.Avatar.Banned);
+            string muted = ConvertInfoToData(account.Avatar.IsCommunityBanned);
+            string haspremium = ConvertInfoToData(account.Avatar.PremiumLevel == 1);
+            string premiumEndTime = ConvertInfoToData(account.Home.PremiumEndTime);
+            string hascreator = ConvertInfoToData(account.Avatar.CreatorLevel == 1);
+            string gold = ConvertInfoToData(account.Avatar.Gold);
+            string gems = ConvertInfoToData(account.Avatar.Diamonds);
+            string starpoints = ConvertInfoToData(account.Avatar.StarPoints);
+            string alliancename = ConvertInfoToData(account.Avatar.AllianceName);
+            string allianceid = ConvertInfoToData(account.Avatar.AllianceId);
+            string alliancerole = ConvertInfoToData(account.Avatar.AllianceRole);
+
+            string password = DatabaseHelper.ExecuteScalar(
+                "SELECT password FROM users WHERE id = @id",
+                ("@id", lowID)
+            );
+
+            // Получаем информацию о бана и мута
+            string banEndTime = ConvertInfoToData(account.Home.BanEndTime);
+            string banReason = ConvertInfoToData(account.Home.BanReason);
+            string muteEndTime = ConvertInfoToData(account.Home.MuteEndTime);
+            string muteReason = ConvertInfoToData(account.Home.MuteReason);
+
+            // Форматируем даты в нужный формат
+            if (account.Home.BanEndTime != DateTime.MinValue)
+                banEndTime = account.Home.BanEndTime.ToString("yyyy-MM-dd HH:mm:ss") + " UTC";
+            if (account.Home.MuteEndTime != DateTime.MinValue)
+                muteEndTime = account.Home.MuteEndTime.ToString("yyyy-MM-dd HH:mm:ss") + " UTC";
+
+            return $"# Информация о {playerId}!\n"
+                + $"IP-Адрес при регистрации: {firstIpAddress}\n"
+                + $"IP-Адрес сейчас: {ipAddress}\n"
+                + $"Последний раз заходили: {lastLoginTime} UTC\n"
+                + $"Девайс: {device}\n"
+                + $"Айди Девайса: {deviceid}\n"
+                + $"# Статистика аккауна\n"
+                + $"Никнейм: {name}\n"
+                + $"Токен: {token}\n"
+                + $"Монеты: {gold}\n"
+                + $"Гемы: {gems}\n"
+                + $"Старпоинты: {starpoints}\n"
+                + $"Трофеи: {trophies}\n"
+                + $"Победы в соло: {soloWins}\n"
+                + $"Победы в дуо: {duoWins}\n"
+                + $"Победы в трио: {trioWins}\n"
+                + $"Премиум: {haspremium}\n"
+                + $"Закончится премиум: {premiumEndTime}\n"
+                + $"Креатор: {hascreator}\n"
+                + $"Замучен: {muted}\n"
+                + $"Заблокирован: {banned}\n"
+                + $"# Информация о клубе\n"
+                + $"Имя клуба: {alliancename}\n"
+                + $"Айди клуба: {allianceid}\n"
+                + $"Роль в клубе: {alliancerole}\n"                
+                + $"# Бан и Мут\n"
+                + $"Срок бана: {banEndTime}\n"
+                + $"Причина бана: {banReason}\n"
+                + $"Срок мута: {muteEndTime}\n"
+                + $"Причина мута: {muteReason}\n"
+                + $"# Pablo Connect\n"
+                + $"Пароль: {password}";
+        }
+
+        private static string ConvertInfoToData(object data)
+        {
+            return data?.ToString() ?? "N/A";
+        }
+    }
+}
